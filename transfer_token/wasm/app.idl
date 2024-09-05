@@ -1,0 +1,14 @@
+constructor {
+  New : ();
+};
+
+service TransferService {
+  GetBalance : (token: actor_id, owner: actor_id) -> u256;
+  Transfer : (token: actor_id, to: actor_id, value: u256) -> bool;
+  TransferFrom : (token: actor_id, from: actor_id, to: actor_id, value: u256) -> bool;
+
+  events {
+    Transfer: struct { vft: actor_id, from: actor_id, to: actor_id, value: u256 };
+  }
+};
+
