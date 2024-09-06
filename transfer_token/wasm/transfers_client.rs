@@ -52,6 +52,18 @@ impl<R> TransferCall<R> {
 }
 impl<R: Remoting + Clone> traits::TransferCall for TransferCall<R> {
     type Args = R::Args;
+    fn create_vft(
+        &mut self,
+        code_id: CodeId,
+        name: String,
+        symbol: String,
+        decimals: u8,
+    ) -> impl Call<Output = bool, Args = R::Args> {
+        RemotingAction::<_, transfer_call::io::CreateVft>::new(
+            self.remoting.clone(),
+            (code_id, name, symbol, decimals),
+        )
+    }
     fn transfer(
         &mut self,
         token: ActorId,
@@ -61,6 +73,18 @@ impl<R: Remoting + Clone> traits::TransferCall for TransferCall<R> {
         RemotingAction::<_, transfer_call::io::Transfer>::new(
             self.remoting.clone(),
             (token, to, value),
+        )
+    }
+    fn transfer_from(
+        &mut self,
+        token: ActorId,
+        from: ActorId,
+        to: ActorId,
+        value: U256,
+    ) -> impl Call<Output = bool, Args = R::Args> {
+        RemotingAction::<_, transfer_call::io::TransferFrom>::new(
+            self.remoting.clone(),
+            (token, from, to, value),
         )
     }
     fn get_balance_from_contract(
@@ -79,6 +103,26 @@ pub mod transfer_call {
     pub mod io {
         use super::*;
         use sails_rs::calls::ActionIo;
+        pub struct CreateVft(());
+        impl CreateVft {
+            #[allow(dead_code)]
+            pub fn encode_call(
+                code_id: CodeId,
+                name: String,
+                symbol: String,
+                decimals: u8,
+            ) -> Vec<u8> {
+                <CreateVft as ActionIo>::encode_call(&(code_id, name, symbol, decimals))
+            }
+        }
+        impl ActionIo for CreateVft {
+            const ROUTE: &'static [u8] = &[
+                48, 84, 114, 97, 110, 115, 102, 101, 114, 67, 97, 108, 108, 36, 67, 114, 101, 97,
+                116, 101, 86, 102, 116,
+            ];
+            type Params = (CodeId, String, String, u8);
+            type Reply = bool;
+        }
         pub struct Transfer(());
         impl Transfer {
             #[allow(dead_code)]
@@ -92,6 +136,21 @@ pub mod transfer_call {
                 115, 102, 101, 114,
             ];
             type Params = (ActorId, ActorId, U256);
+            type Reply = bool;
+        }
+        pub struct TransferFrom(());
+        impl TransferFrom {
+            #[allow(dead_code)]
+            pub fn encode_call(token: ActorId, from: ActorId, to: ActorId, value: U256) -> Vec<u8> {
+                <TransferFrom as ActionIo>::encode_call(&(token, from, to, value))
+            }
+        }
+        impl ActionIo for TransferFrom {
+            const ROUTE: &'static [u8] = &[
+                48, 84, 114, 97, 110, 115, 102, 101, 114, 67, 97, 108, 108, 48, 84, 114, 97, 110,
+                115, 102, 101, 114, 70, 114, 111, 109,
+            ];
+            type Params = (ActorId, ActorId, ActorId, U256);
             type Reply = bool;
         }
         pub struct GetBalanceFromContract(());
@@ -124,12 +183,20 @@ pub mod transfer_call {
                 to: ActorId,
                 value: U256,
             },
+            VftCreated {
+                vft: ActorId,
+                name: String,
+                symbol: String,
+                decimals: u8,
+            },
         }
         impl EventIo for TransferCallEvents {
             const ROUTE: &'static [u8] =
                 &[48, 84, 114, 97, 110, 115, 102, 101, 114, 67, 97, 108, 108];
-            const EVENT_NAMES: &'static [&'static [u8]] =
-                &[&[32, 84, 114, 97, 110, 115, 102, 101, 114]];
+            const EVENT_NAMES: &'static [&'static [u8]] = &[
+                &[32, 84, 114, 97, 110, 115, 102, 101, 114],
+                &[40, 86, 102, 116, 67, 114, 101, 97, 116, 101, 100],
+            ];
             type Event = Self;
         }
         pub fn listener<R: Listener<Vec<u8>>>(remoting: R) -> impl Listener<TransferCallEvents> {
@@ -149,9 +216,23 @@ pub mod traits {
     #[allow(clippy::type_complexity)]
     pub trait TransferCall {
         type Args;
+        fn create_vft(
+            &mut self,
+            code_id: CodeId,
+            name: String,
+            symbol: String,
+            decimals: u8,
+        ) -> impl Call<Output = bool, Args = Self::Args>;
         fn transfer(
             &mut self,
             token: ActorId,
+            to: ActorId,
+            value: U256,
+        ) -> impl Call<Output = bool, Args = Self::Args>;
+        fn transfer_from(
+            &mut self,
+            token: ActorId,
+            from: ActorId,
             to: ActorId,
             value: U256,
         ) -> impl Call<Output = bool, Args = Self::Args>;
@@ -170,5 +251,5 @@ extern crate std;
 pub mod mockall {
     use super::*;
     use sails_rs::mockall::*;
-    mock! { pub TransferCall<A> {} #[allow(refining_impl_trait)] #[allow(clippy::type_complexity)] impl<A> traits::TransferCall for TransferCall<A> { type Args = A; fn transfer (&mut self, token: ActorId,to: ActorId,value: U256,) -> MockCall<A, bool>;fn get_balance_from_contract (& self, owner: ActorId,token: ActorId,) -> MockQuery<A, U256>; } }
+    mock! { pub TransferCall<A> {} #[allow(refining_impl_trait)] #[allow(clippy::type_complexity)] impl<A> traits::TransferCall for TransferCall<A> { type Args = A; fn create_vft (&mut self, code_id: CodeId,name: String,symbol: String,decimals: u8,) -> MockCall<A, bool>;fn transfer (&mut self, token: ActorId,to: ActorId,value: U256,) -> MockCall<A, bool>;fn transfer_from (&mut self, token: ActorId,from: ActorId,to: ActorId,value: U256,) -> MockCall<A, bool>;fn get_balance_from_contract (& self, owner: ActorId,token: ActorId,) -> MockQuery<A, U256>; } }
 }
